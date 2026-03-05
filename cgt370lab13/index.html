@@ -10,8 +10,12 @@
 <h2>Size and Energy Type vs Year Built</h2>
 <svg id="scatter" width="900" height="500"></svg>
 
+<h2>Renewable vs Non-Renewable Total Capacity Over Timer</h2>
+<svg id="twoLine" width="900" height="500"></svg>
+
 <h2>Cumulative Plant Counts by Energy Type per Decade</h2>
 <svg id="stackedbar" width="900" height="500"></svg>
+
 
 <script>
 d3.csv("power_plants.csv").then(function(data) {
@@ -187,6 +191,80 @@ d3.csv("power_plants.csv").then(function(data) {
       .attr("y", 12)
       .text(d => d);
 
+// ----- Renewable vs Non-Renewable Capacity Line Chart -----
+
+const lineSvg = d3.select("#twoLine");
+const lineWidth = 850;
+const lineHeight = 500;
+
+const renewableTypes = ["Hydro","Wind","Solar"];
+const nonRenewableTypes = ["Coal","Gas","Nuclear"];
+
+const capacityByYear = d3.rollups(
+  data,
+  v => ({
+    renewable: d3.sum(v.filter(d => renewableTypes.includes(d.energy_type)), d => d.capacity_mw),
+    nonrenewable: d3.sum(v.filter(d => nonRenewableTypes.includes(d.energy_type)), d => d.capacity_mw)
+  }),
+  d => d.year_built
+)
+.map(([year, vals]) => ({
+  year: +year,
+  renewable: vals.renewable,
+  nonrenewable: vals.nonrenewable
+}))
+.sort((a,b) => a.year - b.year);
+
+const xLine = d3.scaleLinear()
+  .domain(d3.extent(capacityByYear, d => d.year))
+  .range([70, lineWidth - 100]);
+
+const yLine = d3.scaleLinear()
+  .domain([0, d3.max(capacityByYear, d => Math.max(d.renewable, d.nonrenewable))])
+  .range([lineHeight - 70, 50]);
+
+lineSvg.append("g")
+  .attr("transform", `translate(0,${lineHeight - 70})`)
+  .call(d3.axisBottom(xLine).tickFormat(d3.format("d")));
+
+lineSvg.append("g")
+  .attr("transform", "translate(70,0)")
+  .call(d3.axisLeft(yLine));
+
+const renewableLine = d3.line()
+  .x(d => xLine(d.year))
+  .y(d => yLine(d.renewable));
+
+const nonRenewableLine = d3.line()
+  .x(d => xLine(d.year))
+  .y(d => yLine(d.nonrenewable));
+
+lineSvg.append("path")
+  .datum(capacityByYear)
+  .attr("fill", "none")
+  .attr("stroke", "green")
+  .attr("stroke-width", 2)
+  .attr("d", renewableLine);
+
+lineSvg.append("path")
+  .datum(capacityByYear)
+  .attr("fill", "none")
+  .attr("stroke", "red")
+  .attr("stroke-width", 2)
+  .attr("d", nonRenewableLine);
+
+lineSvg.append("text")
+  .attr("x", lineWidth / 2)
+  .attr("y", lineHeight - 20)
+  .attr("text-anchor", "middle")
+  .text("Year Built");
+
+lineSvg.append("text")
+  .attr("transform", "rotate(-90)")
+  .attr("x", -lineHeight / 2)
+  .attr("y", 25)
+  .attr("text-anchor", "middle")
+  .text("Capacity (MW)");
 });
 </script>
 
